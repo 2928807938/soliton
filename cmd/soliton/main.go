@@ -234,6 +234,7 @@ func main() {
 	fmt.Println()
 
 	// 创建生成器
+	entityGenerator := generator.NewEntityGenerator()
 	doGenerator := generator.NewDOGenerator()
 	convertorGenerator := generator.NewConvertorGenerator()
 	repoInterfaceGenerator := generator.NewRepositoryInterfaceGenerator()
@@ -242,6 +243,7 @@ func main() {
 	serviceImplGenerator := generator.NewServiceImplGenerator()
 
 	// 生成统计
+	entityCount := 0
 	doCount := 0
 	convertorCount := 0
 	repoInterfaceCount := 0
@@ -249,13 +251,20 @@ func main() {
 	serviceInterfaceCount := 0
 	serviceImplCount := 0
 
-	// 注意：不再生成独立的 *_entity.go 文件
-	// 聚合根应该直接嵌入 framework.BaseEntity：
-	//   type Order struct {
-	//       framework.BaseEntity
-	//       OrderNo string
-	//       ...
-	//   }
+	// 0. 生成 Entity 接口实现（追加到原领域模型文件）
+	fmt.Println("📝 生成 Entity 接口实现:")
+	for i, agg := range aggregates {
+		fmt.Printf("%d. %s.go", i+1, toLowerFirst(agg.Name))
+
+		if err := entityGenerator.Generate(agg); err != nil {
+			fmt.Printf(" ⚠️  失败: %v\n", err)
+			continue
+		}
+
+		entityCount++
+		fmt.Printf(" ✅\n")
+	}
+	fmt.Println()
 
 	// 1. 生成数据对象（DO）
 	fmt.Println("📝 生成数据对象（DO）:")
@@ -352,6 +361,7 @@ func main() {
 	fmt.Println()
 	fmt.Println("📊 生成统计:")
 	fmt.Printf("   - SQL 建表脚本: 1 个\n")
+	fmt.Printf("   - Entity 接口实现: %d 个\n", entityCount)
 	fmt.Printf("   - 数据对象（DO）: %d 个\n", doCount)
 	fmt.Printf("   - 转换器: %d 个\n", convertorCount)
 	fmt.Printf("   - 仓储接口: %d 个\n", repoInterfaceCount)
@@ -361,7 +371,7 @@ func main() {
 	fmt.Println()
 	fmt.Println("📂 生成目录:")
 	fmt.Printf("   - SQL 脚本: %s\n", filepath.Join(outputDir, "sql"))
-	fmt.Printf("   - Entity 模型: %s（需手动嵌入 framework.BaseEntity）\n", modelDir)
+	fmt.Printf("   - Entity 接口实现: %s（已追加到原领域模型文件）\n", modelDir)
 	fmt.Printf("   - DO: %s\n", filepath.Join(outputDir, "infrastructure/persistence/do"))
 	fmt.Printf("   - 转换器: %s\n", filepath.Join(outputDir, "infrastructure/persistence/convertor"))
 	fmt.Printf("   - 仓储接口: %s\n", filepath.Join(outputDir, "domain/repository"))
@@ -372,7 +382,7 @@ func main() {
 	fmt.Println("💡 完成！所有DDD基础设施代码已生成")
 	fmt.Println()
 	fmt.Println("🎯 下一步:")
-	fmt.Println("   1. 在聚合根中嵌入 framework.BaseEntity")
+	fmt.Println("   1. 查看领域模型文件，确认 Entity 接口方法已正确追加")
 	fmt.Println("   2. 查看 sql/schema.sql 并在数据库中执行")
 	fmt.Println("   3. 配置数据库连接")
 	fmt.Println("   4. 在应用服务层使用生成的仓储和服务")

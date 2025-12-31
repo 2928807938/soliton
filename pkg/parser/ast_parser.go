@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"path/filepath"
 	"soliton/pkg/metadata"
 	"strings"
 )
@@ -110,8 +109,8 @@ func (p *ASTParser) ParseDirectory(dirPath string) ([]*metadata.AggregateMetadat
 	// 遍历每个包
 	for _, pkg := range pkgs {
 		// 遍历包中的每个文件
-		for fileName, file := range pkg.Files {
-			filePath := filepath.Join(dirPath, fileName)
+		// 注意：pkg.Files 的键已经是完整的文件路径，无需再拼接 dirPath
+		for filePath, file := range pkg.Files {
 
 			// 遍历文件中的所有声明
 			for _, decl := range file.Decls {
