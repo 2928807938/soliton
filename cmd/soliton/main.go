@@ -377,7 +377,7 @@ func main() {
 	fmt.Printf("   - 仓储接口: %s\n", filepath.Join(outputDir, "domain/repository"))
 	fmt.Printf("   - 仓储实现: %s\n", filepath.Join(outputDir, "infrastructure/persistence"))
 	fmt.Printf("   - 服务接口: %s\n", filepath.Join(outputDir, "domain/service"))
-	fmt.Printf("   - 服务实现: %s\n", filepath.Join(outputDir, "domain/service"))
+	fmt.Printf("   - 服务实现: %s\n", filepath.Join(outputDir, "domain/service/impl"))
 	fmt.Println()
 	fmt.Println("💡 完成！所有DDD基础设施代码已生成")
 	fmt.Println()
