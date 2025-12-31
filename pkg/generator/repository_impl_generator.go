@@ -59,6 +59,7 @@ func (g *RepositoryImplGenerator) generateCode(agg *metadata.AggregateMetadata) 
 	sb.WriteString("\t\"domain/repository\"\n")
 	sb.WriteString("\t\"infrastructure/persistence/convertor\"\n")
 	sb.WriteString("\t\"infrastructure/persistence/do\"\n")
+	sb.WriteString("\t\"infrastructure/persistence/query\"\n")
 	sb.WriteString("\t\"soliton/pkg/framework\"\n")
 	sb.WriteString("\t\"gorm.io/gorm\"\n")
 	sb.WriteString(")\n\n")
@@ -146,8 +147,9 @@ func (g *RepositoryImplGenerator) generateGetByUniqueMethod(agg *metadata.Aggreg
 	sb.WriteString(fmt.Sprintf("func (%s *%sRepositoryImpl) GetBy%s(ctx context.Context, %s %s) (*model.%s, error) {\n",
 		receiver, agg.Name, field.Name, toLowerFirst(field.Name), field.Type, agg.Name))
 	sb.WriteString(fmt.Sprintf("\tvar dataObj do.%sDO\n", agg.Name))
-	sb.WriteString(fmt.Sprintf("\terr := %s.BaseRepository.DB().WithContext(ctx).Where(\"%s = ?\", %s).First(&dataObj).Error\n",
-		receiver, field.DBTag, toLowerFirst(field.Name)))
+	sb.WriteString(fmt.Sprintf("\tcond := query.%s.%s.Eq(%s)\n", agg.Name, field.Name, toLowerFirst(field.Name)))
+	sb.WriteString(fmt.Sprintf("\tsql, args := cond.Build()\n"))
+	sb.WriteString(fmt.Sprintf("\terr := %s.BaseRepository.DB().WithContext(ctx).Where(sql, args...).First(&dataObj).Error\n", receiver))
 	sb.WriteString("\n")
 	sb.WriteString("\tif err != nil {\n")
 	sb.WriteString("\t\tif errors.Is(err, gorm.ErrRecordNotFound) {\n")
@@ -172,8 +174,9 @@ func (g *RepositoryImplGenerator) generateGetByIndexMethod(agg *metadata.Aggrega
 	sb.WriteString(fmt.Sprintf("func (%s *%sRepositoryImpl) GetBy%s(ctx context.Context, %s %s) ([]*model.%s, error) {\n",
 		receiver, agg.Name, field.Name, toLowerFirst(field.Name), field.Type, agg.Name))
 	sb.WriteString(fmt.Sprintf("\tvar dataObjs []do.%sDO\n", agg.Name))
-	sb.WriteString(fmt.Sprintf("\terr := %s.BaseRepository.DB().WithContext(ctx).Where(\"%s = ?\", %s).Find(&dataObjs).Error\n",
-		receiver, field.DBTag, toLowerFirst(field.Name)))
+	sb.WriteString(fmt.Sprintf("\tcond := query.%s.%s.Eq(%s)\n", agg.Name, field.Name, toLowerFirst(field.Name)))
+	sb.WriteString(fmt.Sprintf("\tsql, args := cond.Build()\n"))
+	sb.WriteString(fmt.Sprintf("\terr := %s.BaseRepository.DB().WithContext(ctx).Where(sql, args...).Find(&dataObjs).Error\n", receiver))
 	sb.WriteString("\n")
 	sb.WriteString("\tif err != nil {\n")
 	sb.WriteString("\t\treturn nil, err\n")

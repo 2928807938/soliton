@@ -236,6 +236,7 @@ func main() {
 	// 创建生成器
 	entityGenerator := generator.NewEntityGenerator()
 	doGenerator := generator.NewDOGenerator()
+	queryFieldGenerator := generator.NewQueryFieldGenerator()
 	convertorGenerator := generator.NewConvertorGenerator()
 	repoInterfaceGenerator := generator.NewRepositoryInterfaceGenerator()
 	repoImplGenerator := generator.NewRepositoryImplGenerator()
@@ -245,6 +246,7 @@ func main() {
 	// 生成统计
 	entityCount := 0
 	doCount := 0
+	queryFieldCount := 0
 	convertorCount := 0
 	repoInterfaceCount := 0
 	repoImplCount := 0
@@ -277,6 +279,29 @@ func main() {
 		}
 
 		doCount++
+		fmt.Printf(" ✅\n")
+	}
+	fmt.Println()
+
+	// 2. 生成查询字段（Query Fields）
+	fmt.Println("📝 生成查询字段（类型安全查询）:")
+	// 先生成通用字段类型定义
+	fmt.Printf("0. field_types.go")
+	if err := queryFieldGenerator.GenerateFieldTypes(outputDir); err != nil {
+		fmt.Printf(" ⚠️  失败: %v\n", err)
+	} else {
+		fmt.Printf(" ✅\n")
+	}
+	// 为每个聚合根生成查询字段
+	for i, agg := range registry.GetAll() {
+		fmt.Printf("%d. %sFields.go", i+1, agg.Name)
+
+		if err := queryFieldGenerator.Generate(agg, outputDir); err != nil {
+			fmt.Printf(" ⚠️  失败: %v\n", err)
+			continue
+		}
+
+		queryFieldCount++
 		fmt.Printf(" ✅\n")
 	}
 	fmt.Println()
@@ -363,6 +388,7 @@ func main() {
 	fmt.Printf("   - SQL 建表脚本: 1 个\n")
 	fmt.Printf("   - Entity 接口实现: %d 个\n", entityCount)
 	fmt.Printf("   - 数据对象（DO）: %d 个\n", doCount)
+	fmt.Printf("   - 查询字段: %d 个\n", queryFieldCount)
 	fmt.Printf("   - 转换器: %d 个\n", convertorCount)
 	fmt.Printf("   - 仓储接口: %d 个\n", repoInterfaceCount)
 	fmt.Printf("   - 仓储实现: %d 个\n", repoImplCount)
@@ -373,6 +399,7 @@ func main() {
 	fmt.Printf("   - SQL 脚本: %s\n", filepath.Join(outputDir, "sql"))
 	fmt.Printf("   - Entity 接口实现: %s（已追加到原领域模型文件）\n", modelDir)
 	fmt.Printf("   - DO: %s\n", filepath.Join(outputDir, "infrastructure/persistence/do"))
+	fmt.Printf("   - 查询字段: %s\n", filepath.Join(outputDir, "infrastructure/persistence/query"))
 	fmt.Printf("   - 转换器: %s\n", filepath.Join(outputDir, "infrastructure/persistence/convertor"))
 	fmt.Printf("   - 仓储接口: %s\n", filepath.Join(outputDir, "domain/repository"))
 	fmt.Printf("   - 仓储实现: %s\n", filepath.Join(outputDir, "infrastructure/persistence"))
