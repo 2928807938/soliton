@@ -76,6 +76,86 @@
 - ✅ 关系一致性检查
 - ✅ 错误报告机制
 
+### 第三阶段：泛型框架开发
+
+#### 1. Entity 接口 (`framework/entity.go`)
+- ✅ 定义实体约束接口
+- ✅ 用作泛型约束，确保类型安全
+- ✅ 提供 GetID、SetID、IsNew 方法
+
+#### 2. Repository[T] 泛型接口 (`framework/repository.go`)
+- ✅ 定义泛型仓储接口
+- ✅ 完整的 CRUD 操作
+- ✅ 软删除支持（Remove、Restore）
+- ✅ 分页查询支持
+- ✅ 类型安全的返回值
+
+#### 3. Service[T] 泛型接口 (`framework/service.go`)
+- ✅ 定义泛型领域服务接口
+- ✅ 基础业务方法
+- ✅ 自动校验支持（标记驱动）
+
+#### 4. BaseRepository[T, D] 实现 (`framework/base_repository.go`)
+- ✅ 双泛型参数（领域对象 + 数据对象）
+- ✅ GORM 集成
+- ✅ 自动软删除处理
+- ✅ 乐观锁支持
+- ✅ 对象转换支持
+
+#### 5. BaseService[T] 实现 (`framework/base_service.go`)
+- ✅ 泛型服务基类
+- ✅ 委托仓储层操作
+- ✅ 标准错误定义
+
+#### 6. Entity 接口实现生成器 (`generator/entity_generator.go`)
+- ✅ 自动生成 Entity 接口实现
+- ✅ 智能 ID 字段识别
+- ✅ 类型转换处理
+- ✅ 生成到聚合根同目录
+
+### 第四阶段：转换器生成
+
+#### 1. DO（数据对象）生成器 (`generator/do_generator.go`)
+- ✅ 生成用于数据库持久化的数据对象
+- ✅ 自动添加 GORM 标签
+- ✅ 主键、索引、唯一约束自动配置
+- ✅ 跳过关联实体字段（只存储外键ID）
+- ✅ 值对象支持（展开/JSON序列化）
+
+#### 2. 转换器生成器 (`generator/convertor_generator.go`)
+- ✅ 生成 ToDomain 方法（数据对象 → 领域对象）
+- ✅ 生成 ToData 方法（领域对象 → 数据对象）
+- ✅ 简单类型直接映射
+- ✅ 关联实体字段自动跳过
+- ✅ 值对象转换注释提示
+
+### 第五阶段：仓储与服务生成
+
+#### 1. 仓储接口生成器 (`generator/repository_interface_generator.go`)
+- ✅ 继承 Repository[T] 泛型接口
+- ✅ 根据字段注解生成扩展方法
+  - `unique` → GetByXxx() 返回单个对象
+  - `index/ref` → GetByXxx() 返回列表
+
+#### 2. 仓储实现生成器 (`generator/repository_impl_generator.go`)
+- ✅ 嵌入 BaseRepository[T, D]
+- ✅ 实现所有扩展方法
+- ✅ 自动使用转换器进行对象转换
+- ✅ GORM 查询实现
+
+#### 3. 领域服务接口生成器 (`generator/service_interface_generator.go`)
+- ✅ 继承 Service[T] 泛型接口
+- ✅ 提供业务方法扩展接口
+
+#### 4. 领域服务实现生成器 (`generator/service_impl_generator.go`)
+- ✅ 嵌入 BaseService[T]
+- ✅ 标记驱动的自动校验逻辑：
+  - `required` → 非空校验
+  - `unique` → 唯一性校验（Add时）
+  - `unique` → 唯一性校验排除自己（Update时）
+  - `enum` → 枚举值校验
+- ✅ 完整的 Add/Update 方法实现
+
 ## 🚀 快速开始
 
 ### 编译
@@ -143,8 +223,66 @@ go build -o soliton.exe cmd/soliton/main.go
    列: role_id, user_id
 
 ===================================================
-✨ 元数据构建完成！
-💡 下一步: 实现泛型框架开发
+
+🔨 开始代码生成...
+
+📝 生成 Entity 接口实现:
+1. order_entity.go ✅
+2. user_entity.go ✅
+3. product_entity.go ✅
+
+📝 生成数据对象（DO）:
+1. OrderDO.go ✅
+2. UserDO.go ✅
+3. ProductDO.go ✅
+
+📝 生成转换器:
+1. OrderConvertor.go ✅
+2. UserConvertor.go ✅
+3. ProductConvertor.go ✅
+
+📝 生成仓储接口:
+1. OrderRepository.go ✅
+2. UserRepository.go ✅
+3. ProductRepository.go ✅
+
+📝 生成仓储实现:
+1. OrderRepositoryImpl.go ✅
+2. UserRepositoryImpl.go ✅
+3. ProductRepositoryImpl.go ✅
+
+📝 生成领域服务接口:
+1. OrderService.go ✅
+2. UserService.go ✅
+3. ProductService.go ✅
+
+📝 生成领域服务实现:
+1. OrderServiceImpl.go ✅
+2. UserServiceImpl.go ✅
+3. ProductServiceImpl.go ✅
+
+===================================================
+✨ 代码生成完成！
+
+📊 生成统计:
+   - Entity 实现: 3 个
+   - 数据对象（DO）: 3 个
+   - 转换器: 3 个
+   - 仓储接口: 3 个
+   - 仓储实现: 3 个
+   - 服务接口: 3 个
+   - 服务实现: 3 个
+
+📂 生成目录:
+   - Entity: ./domain/model
+   - DO: ./infrastructure/persistence/do
+   - 转换器: ./infrastructure/persistence/convertor
+   - 仓储接口: ./domain/repository
+   - 仓储实现: ./infrastructure/persistence
+   - 服务接口: ./domain/service
+   - 服务实现: ./domain/service
+
+💡 完成！所有DDD基础设施代码已生成
 ```
 
 ## 📝 使用示例
@@ -188,9 +326,20 @@ soliton/
 │  │  └─ metadata.go           # 元数据结构 + 注册表
 │  ├─ analyzer/         # 关系分析器
 │  │  └─ relation_analyzer.go  # 关系分析与验证
-│  ├─ generator/        # 代码生成器（待开发）
-│  └─ framework/        # 泛型框架（待开发）
-├─ templates/          # 代码模板（待开发）
+│  ├─ generator/        # 代码生成器
+│  │  ├─ entity_generator.go            # Entity接口实现生成
+│  │  ├─ do_generator.go                # 数据对象(DO)生成
+│  │  ├─ convertor_generator.go         # 转换器生成
+│  │  ├─ repository_interface_generator.go  # 仓储接口生成
+│  │  ├─ repository_impl_generator.go   # 仓储实现生成
+│  │  ├─ service_interface_generator.go # 服务接口生成
+│  │  └─ service_impl_generator.go      # 服务实现生成
+│  └─ framework/        # 泛型框架
+│      ├─ entity.go            # Entity接口定义
+│      ├─ repository.go        # Repository[T]接口
+│      ├─ service.go           # Service[T]接口
+│      ├─ base_repository.go   # BaseRepository[T,D]实现
+│      └─ base_service.go      # BaseService[T]实现
 ├─ go.mod
 └─ README.md
 ```
@@ -213,23 +362,147 @@ soliton/
 - 关系元数据
 - 多对多关联表元数据
 
+## 🎯 泛型框架核心优势
+
+### 1. 类型安全
+```go
+// 编译时类型检查，无需类型断言
+var repo OrderRepository
+order, err := repo.FindByID(ctx, 123)  // 返回 *Order，不是 interface{}
+order.Pay()  // 直接调用业务方法
+```
+
+### 2. 代码复用
+```go
+// 框架层：所有实体共用
+type BaseRepository[T Entity, D any] struct { ... }
+
+// 生成层：每个聚合根一行代码
+type OrderRepositoryImpl struct {
+    BaseRepository[Order, OrderDO]  // 复用所有 CRUD 逻辑
+}
+```
+
+### 3. 易于扩展
+```go
+// 新增聚合根，只需继承
+type ProductRepository interface {
+    Repository[Product]  // 自动拥有所有 CRUD
+
+    // 添加扩展方法
+    GetByCategory(ctx, catID) ([]*Product, error)
+}
+```
+
+## 📋 转换规则说明
+
+### 字段转换规则
+
+根据设计文档，转换器按以下规则处理字段：
+
+| 字段类型 | 转换策略 | 说明 |
+|---------|---------|------|
+| **简单类型** | 直接赋值 | int64、string、bool、float64、time.Time |
+| **值对象** | 展开或序列化 | 内嵌：展开为多字段；JSON：序列化为字符串 |
+| **关联实体** | 只转换 ID | 不递归转换对象，保持聚合边界 |
+| **时间类型** | 自动处理 | time.Time → DATETIME |
+
+### 生成的代码示例
+
+#### 数据对象（DO）
+```go
+// Code generated by soliton. DO NOT EDIT.
+package do
+
+import "time"
+
+// OrderDO Order 数据对象
+type OrderDO struct {
+	ID        int64      `gorm:"column:id;primaryKey;autoIncrement"`
+	OrderNo   string     `gorm:"column:order_no;uniqueIndex:idx_order_no"`
+	UserID    int64      `gorm:"column:user_id;index:idx_user_id"`
+	Amount    float64    `gorm:"column:amount;not null"`
+	Status    string     `gorm:"column:status"`
+	CreatedAt time.Time  `gorm:"column:created_at"`
+	UpdatedAt time.Time  `gorm:"column:updated_at"`
+	Version   int        `gorm:"column:version"`
+	DeletedAt *time.Time `gorm:"column:deleted_at;index:idx_deleted_at"`
+}
+
+// TableName 指定表名
+func (OrderDO) TableName() string {
+	return "orders"
+}
+```
+
+#### 转换器
+```go
+// Code generated by soliton. DO NOT EDIT.
+package convertor
+
+import (
+	"domain/model"
+	"infrastructure/persistence/do"
+)
+
+// ToDomain 数据对象转领域对象
+func ToDomain(dataObj *do.OrderDO) *model.Order {
+	if dataObj == nil {
+		return nil
+	}
+
+	return &model.Order{
+		ID:        dataObj.ID,
+		OrderNo:   dataObj.OrderNo,
+		UserID:    dataObj.UserID,
+		Amount:    dataObj.Amount,
+		Status:    dataObj.Status,
+		// Items: 关联实体，不转换
+		CreatedAt: dataObj.CreatedAt,
+		UpdatedAt: dataObj.UpdatedAt,
+		Version:   dataObj.Version,
+		DeletedAt: dataObj.DeletedAt,
+	}
+}
+
+// ToData 领域对象转数据对象
+func ToData(domain *model.Order) *do.OrderDO {
+	if domain == nil {
+		return nil
+	}
+
+	return &do.OrderDO{
+		ID:        domain.ID,
+		OrderNo:   domain.OrderNo,
+		UserID:    domain.UserID,
+		Amount:    domain.Amount,
+		Status:    domain.Status,
+		// Items: 关联实体，不转换
+		CreatedAt: domain.CreatedAt,
+		UpdatedAt: domain.UpdatedAt,
+		Version:   domain.Version,
+		DeletedAt: domain.DeletedAt,
+	}
+}
+```
+
+## 📊 项目统计
+
+- **总文件数**: 17个Go文件
+- **总代码行数**: 3013行
+- **完整的DDD代码生成系统**
+
 ## 🔜 下一步计划
 
-按照开发计划文档，接下来需要实现：
+按照开发计划文档，接下来可以实现：
 
-1. **泛型框架开发**
-   - Entity 接口定义
-   - Repository[T] 泛型接口
-   - Service[T] 泛型接口
-   - BaseRepository[T, D] 实现
-   - 为聚合根生成 Entity 接口实现
+1. **SQL 脚本生成器**
+   - 根据 DO 生成建表 SQL
+   - 索引、约束自动生成
 
-2. **代码生成**
-   - 仓储接口和实现
-   - 领域服务
-   - 数据对象（DO）
-   - 转换器（Convertor）
-   - SQL 脚本
+2. **优化与扩展**
+   - 单元测试生成
+   - API 文档生成
 
 ## 📖 设计文档
 

@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"soliton/pkg/analyzer"
+	"soliton/pkg/generator"
 	"soliton/pkg/metadata"
 	"soliton/pkg/parser"
 )
@@ -207,8 +209,180 @@ func main() {
 	}
 
 	fmt.Println("=" + repeat("=", 50))
-	fmt.Println("✨ 元数据构建完成！")
-	fmt.Println("💡 下一步: 实现泛型框架开发")
+	fmt.Println()
+
+	// 确定输出目录（项目根目录）
+	outputDir := filepath.Dir(modelDir)
+
+	// ==================== 阶段三：SQL 脚本生成 ====================
+	fmt.Println("💾 开始生成 SQL 建表脚本...")
+	fmt.Println()
+
+	sqlGenerator := generator.NewSQLGenerator(registry)
+	if err := sqlGenerator.Generate(outputDir); err != nil {
+		log.Fatalf("❌ SQL 脚本生成失败: %v", err)
+	}
+
+	fmt.Println("✅ SQL 脚本生成完成：sql/schema.sql")
+	fmt.Println()
+
+	fmt.Println("=" + repeat("=", 50))
+	fmt.Println()
+
+	// ==================== 阶段四：代码生成 ====================
+	fmt.Println("🔨 开始代码生成...")
+	fmt.Println()
+
+	// 创建生成器
+	doGenerator := generator.NewDOGenerator()
+	convertorGenerator := generator.NewConvertorGenerator()
+	repoInterfaceGenerator := generator.NewRepositoryInterfaceGenerator()
+	repoImplGenerator := generator.NewRepositoryImplGenerator()
+	serviceInterfaceGenerator := generator.NewServiceInterfaceGenerator()
+	serviceImplGenerator := generator.NewServiceImplGenerator()
+
+	// 生成统计
+	doCount := 0
+	convertorCount := 0
+	repoInterfaceCount := 0
+	repoImplCount := 0
+	serviceInterfaceCount := 0
+	serviceImplCount := 0
+
+	// 注意：不再生成独立的 *_entity.go 文件
+	// 聚合根应该直接嵌入 framework.BaseEntity：
+	//   type Order struct {
+	//       framework.BaseEntity
+	//       OrderNo string
+	//       ...
+	//   }
+
+	// 1. 生成数据对象（DO）
+	fmt.Println("📝 生成数据对象（DO）:")
+	for i, agg := range registry.GetAll() {
+		fmt.Printf("%d. %sDO.go", i+1, agg.Name)
+
+		if err := doGenerator.Generate(agg, outputDir); err != nil {
+			fmt.Printf(" ⚠️  失败: %v\n", err)
+			continue
+		}
+
+		doCount++
+		fmt.Printf(" ✅\n")
+	}
+	fmt.Println()
+
+	// 3. 生成转换器
+	fmt.Println("📝 生成转换器:")
+	for i, agg := range registry.GetAll() {
+		fmt.Printf("%d. %sConvertor.go", i+1, agg.Name)
+
+		if err := convertorGenerator.Generate(agg, outputDir); err != nil {
+			fmt.Printf(" ⚠️  失败: %v\n", err)
+			continue
+		}
+
+		convertorCount++
+		fmt.Printf(" ✅\n")
+	}
+	fmt.Println()
+
+	// 4. 生成仓储接口
+	fmt.Println("📝 生成仓储接口:")
+	for i, agg := range registry.GetAll() {
+		fmt.Printf("%d. %sRepository.go", i+1, agg.Name)
+
+		if err := repoInterfaceGenerator.Generate(agg, outputDir); err != nil {
+			fmt.Printf(" ⚠️  失败: %v\n", err)
+			continue
+		}
+
+		repoInterfaceCount++
+		fmt.Printf(" ✅\n")
+	}
+	fmt.Println()
+
+	// 5. 生成仓储实现
+	fmt.Println("📝 生成仓储实现:")
+	for i, agg := range registry.GetAll() {
+		fmt.Printf("%d. %sRepositoryImpl.go", i+1, agg.Name)
+
+		if err := repoImplGenerator.Generate(agg, outputDir); err != nil {
+			fmt.Printf(" ⚠️  失败: %v\n", err)
+			continue
+		}
+
+		repoImplCount++
+		fmt.Printf(" ✅\n")
+	}
+	fmt.Println()
+
+	// 6. 生成领域服务接口
+	fmt.Println("📝 生成领域服务接口:")
+	for i, agg := range registry.GetAll() {
+		fmt.Printf("%d. %sService.go", i+1, agg.Name)
+
+		if err := serviceInterfaceGenerator.Generate(agg, outputDir); err != nil {
+			fmt.Printf(" ⚠️  失败: %v\n", err)
+			continue
+		}
+
+		serviceInterfaceCount++
+		fmt.Printf(" ✅\n")
+	}
+	fmt.Println()
+
+	// 7. 生成领域服务实现
+	fmt.Println("📝 生成领域服务实现:")
+	for i, agg := range registry.GetAll() {
+		fmt.Printf("%d. %sServiceImpl.go", i+1, agg.Name)
+
+		if err := serviceImplGenerator.Generate(agg, outputDir); err != nil {
+			fmt.Printf(" ⚠️  失败: %v\n", err)
+			continue
+		}
+
+		serviceImplCount++
+		fmt.Printf(" ✅\n")
+	}
+	fmt.Println()
+
+	fmt.Println("=" + repeat("=", 50))
+	fmt.Println("✨ 代码生成完成！")
+	fmt.Println()
+	fmt.Println("📊 生成统计:")
+	fmt.Printf("   - SQL 建表脚本: 1 个\n")
+	fmt.Printf("   - 数据对象（DO）: %d 个\n", doCount)
+	fmt.Printf("   - 转换器: %d 个\n", convertorCount)
+	fmt.Printf("   - 仓储接口: %d 个\n", repoInterfaceCount)
+	fmt.Printf("   - 仓储实现: %d 个\n", repoImplCount)
+	fmt.Printf("   - 服务接口: %d 个\n", serviceInterfaceCount)
+	fmt.Printf("   - 服务实现: %d 个\n", serviceImplCount)
+	fmt.Println()
+	fmt.Println("📂 生成目录:")
+	fmt.Printf("   - SQL 脚本: %s\n", filepath.Join(outputDir, "sql"))
+	fmt.Printf("   - Entity 模型: %s（需手动嵌入 framework.BaseEntity）\n", modelDir)
+	fmt.Printf("   - DO: %s\n", filepath.Join(outputDir, "infrastructure/persistence/do"))
+	fmt.Printf("   - 转换器: %s\n", filepath.Join(outputDir, "infrastructure/persistence/convertor"))
+	fmt.Printf("   - 仓储接口: %s\n", filepath.Join(outputDir, "domain/repository"))
+	fmt.Printf("   - 仓储实现: %s\n", filepath.Join(outputDir, "infrastructure/persistence"))
+	fmt.Printf("   - 服务接口: %s\n", filepath.Join(outputDir, "domain/service"))
+	fmt.Printf("   - 服务实现: %s\n", filepath.Join(outputDir, "domain/service"))
+	fmt.Println()
+	fmt.Println("💡 完成！所有DDD基础设施代码已生成")
+	fmt.Println()
+	fmt.Println("🎯 下一步:")
+	fmt.Println("   1. 在聚合根中嵌入 framework.BaseEntity")
+	fmt.Println("   2. 查看 sql/schema.sql 并在数据库中执行")
+	fmt.Println("   3. 配置数据库连接")
+	fmt.Println("   4. 在应用服务层使用生成的仓储和服务")
+}
+
+func toLowerFirst(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	return string(s[0]+32) + s[1:]
 }
 
 func relationTypeName(t metadata.RelationType) string {
