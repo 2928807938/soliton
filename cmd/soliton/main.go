@@ -407,12 +407,6 @@ func main() {
 	fmt.Printf("   - 服务实现: %s\n", filepath.Join(outputDir, "domain/service/impl"))
 	fmt.Println()
 	fmt.Println("💡 完成！所有DDD基础设施代码已生成")
-	fmt.Println()
-	fmt.Println("🎯 下一步:")
-	fmt.Println("   1. 查看领域模型文件，确认 Entity 接口方法已正确追加")
-	fmt.Println("   2. 查看 sql/schema.sql 并在数据库中执行")
-	fmt.Println("   3. 配置数据库连接")
-	fmt.Println("   4. 在应用服务层使用生成的仓储和服务")
 }
 
 func toLowerFirst(s string) string {
