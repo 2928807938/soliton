@@ -6,6 +6,9 @@ import "go/ast"
 type AggregateMetadata struct {
 	Name        string                // 聚合根名称，如 "Order"
 	PackageName string                // 包名
+	ImportPath  string                // 完整的 import 路径，如 "mymodule/domain/model"
+	ModuleName  string                // Go 模块名，如 "mymodule"
+	ModuleRoot  string                // 模块根目录绝对路径
 	FilePath    string                // 文件路径
 	Struct      *ast.StructType       // AST 结构体类型
 	Fields      []*FieldMetadata      // 字段元数据列表

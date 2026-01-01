@@ -1,10 +1,13 @@
 package parser
 
 import (
+	"bufio"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
 	"soliton/pkg/metadata"
 	"strings"
 )
@@ -100,6 +103,18 @@ func (p *ASTParser) ParseFile(filePath string) ([]*metadata.AggregateMetadata, e
 func (p *ASTParser) ParseDirectory(dirPath string) ([]*metadata.AggregateMetadata, error) {
 	var allAggregates []*metadata.AggregateMetadata
 
+	// 获取绝对路径
+	absDir, err := filepath.Abs(dirPath)
+	if err != nil {
+		return nil, fmt.Errorf("获取绝对路径失败: %w", err)
+	}
+
+	// 查找模块信息
+	modRoot, modName := p.findGoMod(absDir)
+
+	// 计算 import 路径
+	importPath := p.calculateImportPath(absDir)
+
 	// 解析目录中的所有包
 	pkgs, err := parser.ParseDir(p.fset, dirPath, nil, parser.ParseComments)
 	if err != nil {
@@ -141,6 +156,9 @@ func (p *ASTParser) ParseDirectory(dirPath string) ([]*metadata.AggregateMetadat
 					aggregate := &metadata.AggregateMetadata{
 						Name:        typeSpec.Name.Name,
 						PackageName: file.Name.Name,
+						ImportPath:  importPath,
+						ModuleName:  modName,
+						ModuleRoot:  modRoot,
 						FilePath:    filePath,
 						Struct:      structType,
 						Annotations: &metadata.AggregateAnnotations{
@@ -162,6 +180,72 @@ func (p *ASTParser) ParseDirectory(dirPath string) ([]*metadata.AggregateMetadat
 	}
 
 	return allAggregates, nil
+}
+
+// calculateImportPath 计算目录的完整 import 路径
+func (p *ASTParser) calculateImportPath(absDir string) string {
+	// 向上查找 go.mod 文件
+	modRoot, modName := p.findGoMod(absDir)
+	if modRoot == "" || modName == "" {
+		// 找不到 go.mod，返回目录名作为包名
+		return filepath.Base(absDir)
+	}
+
+	// 计算相对路径
+	relPath, err := filepath.Rel(modRoot, absDir)
+	if err != nil {
+		return filepath.Base(absDir)
+	}
+
+	// 将路径分隔符统一为 /
+	relPath = filepath.ToSlash(relPath)
+
+	// 如果相对路径是 "."，则直接返回模块名
+	if relPath == "." {
+		return modName
+	}
+
+	// 拼接完整的 import 路径
+	return modName + "/" + relPath
+}
+
+// findGoMod 向上查找 go.mod 文件，返回模块根目录和模块名
+func (p *ASTParser) findGoMod(startDir string) (modRoot string, modName string) {
+	dir := startDir
+	for {
+		goModPath := filepath.Join(dir, "go.mod")
+		if _, err := os.Stat(goModPath); err == nil {
+			// 找到 go.mod，读取模块名
+			modName = p.readModuleName(goModPath)
+			return dir, modName
+		}
+
+		// 向上一级目录
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// 已经到达根目录
+			return "", ""
+		}
+		dir = parent
+	}
+}
+
+// readModuleName 从 go.mod 文件中读取模块名
+func (p *ASTParser) readModuleName(goModPath string) string {
+	file, err := os.Open(goModPath)
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "module ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "module "))
+		}
+	}
+	return ""
 }
 
 // parseFields 解析结构体字段
