@@ -62,18 +62,28 @@ type serviceImplImports struct {
 	repository string
 }
 
+// refFieldInfo 外键字段信息
+type refFieldInfo struct {
+	FieldName     string // 字段名，如 UserID
+	RefAggregate  string // 引用的聚合根名，如 User
+	RepoFieldName string // 仓储字段名，如 userRepo
+}
+
 // generateCode 生成领域服务实现代码
 func (g *ServiceImplGenerator) generateCode(agg *metadata.AggregateMetadata, imports *serviceImplImports) string {
 	var sb strings.Builder
 
+	// 收集外键字段信息
+	refs := g.collectRefFields(agg)
+
 	// 检查需要哪些包
 	needErrors := false // 有 required 字段时需要
-	needFmt := false    // 有 unique 或 enum 字段时需要
+	needFmt := false    // 有 unique 或 enum 或 ref 字段时需要
 	for _, field := range agg.Fields {
 		if field.Annotations.IsRequired {
 			needErrors = true
 		}
-		if field.Annotations.IsUnique || len(field.Annotations.EnumValues) > 0 {
+		if field.Annotations.IsUnique || len(field.Annotations.EnumValues) > 0 || field.Annotations.IsRef {
 			needFmt = true
 		}
 	}
@@ -101,27 +111,34 @@ func (g *ServiceImplGenerator) generateCode(agg *metadata.AggregateMetadata, imp
 	sb.WriteString(fmt.Sprintf("type %sServiceImpl struct {\n", agg.Name))
 	sb.WriteString(fmt.Sprintf("\tframework.BaseService[*%s.%s]\n", agg.PackageName, agg.Name))
 	sb.WriteString(fmt.Sprintf("\trepository repository.%sRepository\n", agg.Name))
+	// 添加外键仓储依赖
+	for _, ref := range refs {
+		sb.WriteString(fmt.Sprintf("\t%s repository.%sRepository\n", ref.RepoFieldName, ref.RefAggregate))
+	}
 	sb.WriteString("}\n\n")
 
 	// 构造函数
-	sb.WriteString(g.generateConstructor(agg))
+	sb.WriteString(g.generateConstructorWithRefs(agg, refs))
 	sb.WriteString("\n")
 
 	// 重写 Add 方法（含校验）
-	sb.WriteString(g.generateAddMethod(agg))
+	sb.WriteString(g.generateAddMethodWithRef(agg, refs))
 	sb.WriteString("\n")
 
 	// 重写 Update 方法（含校验）
-	sb.WriteString(g.generateUpdateMethod(agg))
+	sb.WriteString(g.generateUpdateMethodWithRef(agg, refs))
 	sb.WriteString("\n")
 
 	// 生成校验方法
 	sb.WriteString(g.generateValidationMethods(agg))
 
+	// 生成外键校验方法
+	sb.WriteString(g.generateRefValidation(agg, refs))
+
 	return sb.String()
 }
 
-// generateConstructor 生成构造函数
+// generateConstructor 生成构造函数（无外键依赖）
 func (g *ServiceImplGenerator) generateConstructor(agg *metadata.AggregateMetadata) string {
 	var sb strings.Builder
 
@@ -132,6 +149,117 @@ func (g *ServiceImplGenerator) generateConstructor(agg *metadata.AggregateMetada
 	sb.WriteString(fmt.Sprintf("\t\tBaseService: *framework.NewBaseService[*%s.%s](repo),\n", agg.PackageName, agg.Name))
 	sb.WriteString("\t\trepository:  repo,\n")
 	sb.WriteString("\t}\n")
+	sb.WriteString("}\n")
+
+	return sb.String()
+}
+
+// generateConstructorWithRefs 生成构造函数（带外键仓储依赖）
+func (g *ServiceImplGenerator) generateConstructorWithRefs(agg *metadata.AggregateMetadata, refs []*refFieldInfo) string {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("// New%sService 创建 %s 领域服务实例\n", agg.Name, agg.Name))
+
+	// 构造函数参数
+	params := []string{fmt.Sprintf("repo repository.%sRepository", agg.Name)}
+	for _, ref := range refs {
+		params = append(params, fmt.Sprintf("%s repository.%sRepository", ref.RepoFieldName, ref.RefAggregate))
+	}
+
+	sb.WriteString(fmt.Sprintf("func New%sService(\n", agg.Name))
+	for i, param := range params {
+		if i < len(params)-1 {
+			sb.WriteString(fmt.Sprintf("\t%s,\n", param))
+		} else {
+			sb.WriteString(fmt.Sprintf("\t%s,\n", param))
+		}
+	}
+	sb.WriteString(fmt.Sprintf(") *%sServiceImpl {\n", agg.Name))
+
+	sb.WriteString(fmt.Sprintf("\treturn &%sServiceImpl{\n", agg.Name))
+	sb.WriteString(fmt.Sprintf("\t\tBaseService: *framework.NewBaseService[*%s.%s](repo),\n", agg.PackageName, agg.Name))
+	sb.WriteString("\t\trepository:  repo,\n")
+	for _, ref := range refs {
+		sb.WriteString(fmt.Sprintf("\t\t%s: %s,\n", ref.RepoFieldName, ref.RepoFieldName))
+	}
+	sb.WriteString("\t}\n")
+	sb.WriteString("}\n")
+
+	return sb.String()
+}
+
+// generateAddMethodWithRef 生成 Add 方法（含外键校验）
+func (g *ServiceImplGenerator) generateAddMethodWithRef(agg *metadata.AggregateMetadata, refs []*refFieldInfo) string {
+	var sb strings.Builder
+
+	receiver := strings.ToLower(string(agg.Name[0]))
+
+	sb.WriteString(fmt.Sprintf("// Add 添加实体（含校验）\n"))
+	sb.WriteString(fmt.Sprintf("func (%s *%sServiceImpl) Add(ctx context.Context, entity *%s.%s) error {\n",
+		receiver, agg.Name, agg.PackageName, agg.Name))
+
+	// 生成校验逻辑
+	sb.WriteString("\t// 必填字段校验\n")
+	sb.WriteString(fmt.Sprintf("\tif err := %s.validateRequired(entity); err != nil {\n", receiver))
+	sb.WriteString("\t\treturn err\n")
+	sb.WriteString("\t}\n\n")
+
+	sb.WriteString("\t// 唯一性校验\n")
+	sb.WriteString(fmt.Sprintf("\tif err := %s.validateUnique(ctx, entity); err != nil {\n", receiver))
+	sb.WriteString("\t\treturn err\n")
+	sb.WriteString("\t}\n\n")
+
+	sb.WriteString("\t// 枚举值校验\n")
+	sb.WriteString(fmt.Sprintf("\tif err := %s.validateEnum(entity); err != nil {\n", receiver))
+	sb.WriteString("\t\treturn err\n")
+	sb.WriteString("\t}\n\n")
+
+	// 外键存在性校验
+	sb.WriteString("\t// 外键存在性校验\n")
+	sb.WriteString(fmt.Sprintf("\tif err := %s.validateRef(ctx, entity); err != nil {\n", receiver))
+	sb.WriteString("\t\treturn err\n")
+	sb.WriteString("\t}\n\n")
+
+	sb.WriteString("\t// 调用仓储层保存\n")
+	sb.WriteString(fmt.Sprintf("\treturn %s.repository.Add(ctx, entity)\n", receiver))
+	sb.WriteString("}\n")
+
+	return sb.String()
+}
+
+// generateUpdateMethodWithRef 生成 Update 方法（含外键校验）
+func (g *ServiceImplGenerator) generateUpdateMethodWithRef(agg *metadata.AggregateMetadata, refs []*refFieldInfo) string {
+	var sb strings.Builder
+
+	receiver := strings.ToLower(string(agg.Name[0]))
+
+	sb.WriteString(fmt.Sprintf("// Update 更新实体（含校验）\n"))
+	sb.WriteString(fmt.Sprintf("func (%s *%sServiceImpl) Update(ctx context.Context, entity *%s.%s) error {\n",
+		receiver, agg.Name, agg.PackageName, agg.Name))
+
+	sb.WriteString("\t// 必填字段校验\n")
+	sb.WriteString(fmt.Sprintf("\tif err := %s.validateRequired(entity); err != nil {\n", receiver))
+	sb.WriteString("\t\treturn err\n")
+	sb.WriteString("\t}\n\n")
+
+	sb.WriteString("\t// 唯一性校验（排除自己）\n")
+	sb.WriteString(fmt.Sprintf("\tif err := %s.validateUniqueExcludeSelf(ctx, entity); err != nil {\n", receiver))
+	sb.WriteString("\t\treturn err\n")
+	sb.WriteString("\t}\n\n")
+
+	sb.WriteString("\t// 枚举值校验\n")
+	sb.WriteString(fmt.Sprintf("\tif err := %s.validateEnum(entity); err != nil {\n", receiver))
+	sb.WriteString("\t\treturn err\n")
+	sb.WriteString("\t}\n\n")
+
+	// 外键存在性校验
+	sb.WriteString("\t// 外键存在性校验\n")
+	sb.WriteString(fmt.Sprintf("\tif err := %s.validateRef(ctx, entity); err != nil {\n", receiver))
+	sb.WriteString("\t\treturn err\n")
+	sb.WriteString("\t}\n\n")
+
+	sb.WriteString("\t// 调用仓储层更新\n")
+	sb.WriteString(fmt.Sprintf("\treturn %s.repository.Update(ctx, entity)\n", receiver))
 	sb.WriteString("}\n")
 
 	return sb.String()
@@ -327,6 +455,87 @@ func (g *ServiceImplGenerator) generateValidationMethods(agg *metadata.Aggregate
 
 	if !hasEnum {
 		sb.WriteString("\t// 无枚举字段\n")
+	}
+
+	sb.WriteString("\treturn nil\n")
+	sb.WriteString("}\n\n")
+
+	return sb.String()
+}
+
+// collectRefFields 收集所有外键字段信息
+func (g *ServiceImplGenerator) collectRefFields(agg *metadata.AggregateMetadata) []*refFieldInfo {
+	var refs []*refFieldInfo
+	seen := make(map[string]bool) // 避免重复
+
+	for _, field := range agg.Fields {
+		if field.Annotations.IsRef {
+			// 从字段名推断聚合根名称
+			// 例如：UserID -> User, OrderID -> Order
+			refAggregate := g.extractRefAggregateName(field.Name)
+			if refAggregate != "" && !seen[refAggregate] {
+				seen[refAggregate] = true
+				refs = append(refs, &refFieldInfo{
+					FieldName:     field.Name,
+					RefAggregate:  refAggregate,
+					RepoFieldName: toLowerFirst(refAggregate) + "Repo",
+				})
+			}
+		}
+	}
+
+	return refs
+}
+
+// extractRefAggregateName 从字段名提取引用的聚合根名称
+// UserID -> User, OrderID -> Order, CreatorID -> Creator
+func (g *ServiceImplGenerator) extractRefAggregateName(fieldName string) string {
+	// 如果以 ID 结尾，去掉 ID
+	if strings.HasSuffix(fieldName, "ID") && len(fieldName) > 2 {
+		return fieldName[:len(fieldName)-2]
+	}
+	// 如果以 Id 结尾，去掉 Id
+	if strings.HasSuffix(fieldName, "Id") && len(fieldName) > 2 {
+		return fieldName[:len(fieldName)-2]
+	}
+	return ""
+}
+
+// generateRefValidation 生成外键存在性校验方法
+func (g *ServiceImplGenerator) generateRefValidation(agg *metadata.AggregateMetadata, refs []*refFieldInfo) string {
+	var sb strings.Builder
+
+	receiver := strings.ToLower(string(agg.Name[0]))
+
+	sb.WriteString(fmt.Sprintf("// validateRef 外键存在性校验\n"))
+	sb.WriteString(fmt.Sprintf("func (%s *%sServiceImpl) validateRef(ctx context.Context, entity *%s.%s) error {\n",
+		receiver, agg.Name, agg.PackageName, agg.Name))
+
+	if len(refs) == 0 {
+		sb.WriteString("\t// 无外键字段\n")
+		sb.WriteString("\treturn nil\n")
+		sb.WriteString("}\n\n")
+		return sb.String()
+	}
+
+	for _, ref := range refs {
+		// 获取该外键字段的所有字段（可能有多个字段引用同一个聚合根）
+		for _, field := range agg.Fields {
+			if field.Annotations.IsRef && g.extractRefAggregateName(field.Name) == ref.RefAggregate {
+				sb.WriteString(fmt.Sprintf("\t// %s 外键存在性校验\n", field.Name))
+				sb.WriteString(fmt.Sprintf("\tif entity.%s != 0 {\n", field.Name))
+				sb.WriteString(fmt.Sprintf("\t\texists, err := %s.%s.Exists(ctx, entity.%s)\n",
+					receiver, ref.RepoFieldName, field.Name))
+				sb.WriteString("\t\tif err != nil {\n")
+				sb.WriteString(fmt.Sprintf("\t\t\treturn fmt.Errorf(\"校验 %s 失败: %%w\", err)\n", field.Name))
+				sb.WriteString("\t\t}\n")
+				sb.WriteString("\t\tif !exists {\n")
+				sb.WriteString(fmt.Sprintf("\t\t\treturn fmt.Errorf(\"%s 不存在: %%d\", entity.%s)\n",
+					ref.RefAggregate, field.Name))
+				sb.WriteString("\t\t}\n")
+				sb.WriteString("\t}\n\n")
+			}
+		}
 	}
 
 	sb.WriteString("\treturn nil\n")

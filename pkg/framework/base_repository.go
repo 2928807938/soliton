@@ -3,6 +3,7 @@ package framework
 import (
 	"context"
 	"errors"
+	"reflect"
 
 	"gorm.io/gorm"
 )
@@ -72,11 +73,38 @@ func (r *BaseRepository[T, D]) Add(ctx context.Context, entity T) error {
 		return result.Error
 	}
 
-	// 回填生成的 ID（假设 DO 有 ID 字段）
-	// 这里需要通过反射或其他方式获取 DO 的 ID 并设置到 entity
-	// 简化处理：由生成器生成的具体仓储实现中处理
+	// 回填生成的 ID
+	// 通过反射获取 DO 的 ID 字段值并设置到 entity
+	id := r.extractIDFromDO(do)
+	if id > 0 {
+		entity.SetID(id)
+	}
 
 	return nil
+}
+
+// extractIDFromDO 从数据对象中提取 ID
+// 支持多种常见的 ID 字段命名：ID, Id, id
+func (r *BaseRepository[T, D]) extractIDFromDO(do *D) int64 {
+	val := reflect.ValueOf(do)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+
+	if val.Kind() != reflect.Struct {
+		return 0
+	}
+
+	// 尝试常见的 ID 字段名
+	idFieldNames := []string{"ID", "Id", "id"}
+	for _, name := range idFieldNames {
+		field := val.FieldByName(name)
+		if field.IsValid() && field.CanInt() {
+			return field.Int()
+		}
+	}
+
+	return 0
 }
 
 // Update 更新实体（支持乐观锁）
@@ -290,4 +318,113 @@ func (r *BaseRepository[T, D]) WithTx(tx *gorm.DB) *BaseRepository[T, D] {
 		toDO:     r.toDO,
 		toDomain: r.toDomain,
 	}
+}
+
+// ==================== 批量操作 ====================
+
+// AddBatch 批量添加实体
+// batchSize 为每批次插入的数量，0 或负数表示一次性插入所有
+// 会自动回填生成的 ID 到每个 entity
+func (r *BaseRepository[T, D]) AddBatch(ctx context.Context, entities []T, batchSize int) error {
+	if len(entities) == 0 {
+		return nil
+	}
+
+	// 转换为数据对象
+	dos := make([]*D, len(entities))
+	for i, entity := range entities {
+		dos[i] = r.toDO(entity)
+	}
+
+	// 确定批次大小
+	if batchSize <= 0 {
+		batchSize = len(dos)
+	}
+
+	// 分批插入
+	result := r.db.WithContext(ctx).CreateInBatches(dos, batchSize)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	// 回填 ID
+	for i, do := range dos {
+		id := r.extractIDFromDO(do)
+		if id > 0 {
+			entities[i].SetID(id)
+		}
+	}
+
+	return nil
+}
+
+// UpdateBatch 批量更新实体
+// 注意：批量更新使用事务保证原子性，但不支持乐观锁检测
+func (r *BaseRepository[T, D]) UpdateBatch(ctx context.Context, entities []T) error {
+	if len(entities) == 0 {
+		return nil
+	}
+
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, entity := range entities {
+			do := r.toDO(entity)
+			if err := tx.Updates(do).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// DeleteBatch 批量硬删除实体
+func (r *BaseRepository[T, D]) DeleteBatch(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	var do D
+	result := r.db.WithContext(ctx).Delete(&do, ids)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+// RemoveBatch 批量软删除实体
+// 注意：只有当 DO 有 DeletedAt 字段时，GORM 才会执行软删除
+func (r *BaseRepository[T, D]) RemoveBatch(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	var do D
+	result := r.db.WithContext(ctx).Delete(&do, ids)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+// FindByIDs 批量根据 ID 查询实体
+func (r *BaseRepository[T, D]) FindByIDs(ctx context.Context, ids []int64) ([]T, error) {
+	if len(ids) == 0 {
+		return []T{}, nil
+	}
+
+	var dos []D
+	result := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&dos)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	// 转换为领域对象列表
+	entities := make([]T, len(dos))
+	for i := range dos {
+		entities[i] = r.toDomain(&dos[i])
+	}
+
+	return entities, nil
 }
