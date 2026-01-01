@@ -26,8 +26,8 @@ func NewDOGenerator() *DOGenerator {
 
 // Generate 为聚合根生成数据对象
 func (g *DOGenerator) Generate(agg *metadata.AggregateMetadata, outputDir string) error {
-	// 创建输出目录
-	doDir := filepath.Join(outputDir, "infrastructure", "persistence", "do")
+	// 创建输出目录（infrastructure 与 domain 平级）
+	doDir := filepath.Join(filepath.Dir(outputDir), "infrastructure", "do")
 	if err := os.MkdirAll(doDir, 0755); err != nil {
 		return fmt.Errorf("创建输出目录失败: %w", err)
 	}

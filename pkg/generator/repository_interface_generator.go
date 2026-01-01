@@ -28,7 +28,7 @@ func NewRepositoryInterfaceGenerator() *RepositoryInterfaceGenerator {
 // Generate 为聚合根生成仓储接口
 func (g *RepositoryInterfaceGenerator) Generate(agg *metadata.AggregateMetadata, outputDir string) error {
 	// 创建输出目录
-	repoDir := filepath.Join(outputDir, "domain", "repository")
+	repoDir := filepath.Join(outputDir, "repository")
 	if err := os.MkdirAll(repoDir, 0755); err != nil {
 		return fmt.Errorf("创建输出目录失败: %w", err)
 	}
@@ -59,7 +59,7 @@ func (g *RepositoryInterfaceGenerator) generateCode(agg *metadata.AggregateMetad
 	// 导入
 	sb.WriteString("import (\n")
 	sb.WriteString("\t\"context\"\n")
-	sb.WriteString("\t\"domain/model\"\n")
+	sb.WriteString("\t\"model\"\n")
 	sb.WriteString("\t\"soliton/pkg/framework\"\n")
 	sb.WriteString(")\n\n")
 

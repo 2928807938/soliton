@@ -29,8 +29,8 @@ func NewConvertorGenerator() *ConvertorGenerator {
 
 // Generate 为聚合根生成转换器
 func (g *ConvertorGenerator) Generate(agg *metadata.AggregateMetadata, outputDir string) error {
-	// 创建输出目录
-	convertorDir := filepath.Join(outputDir, "infrastructure", "persistence", "convertor")
+	// 创建输出目录（infrastructure 与 domain 平级）
+	convertorDir := filepath.Join(filepath.Dir(outputDir), "infrastructure", "convertor")
 	if err := os.MkdirAll(convertorDir, 0755); err != nil {
 		return fmt.Errorf("创建输出目录失败: %w", err)
 	}
@@ -60,8 +60,8 @@ func (g *ConvertorGenerator) generateCode(agg *metadata.AggregateMetadata) strin
 
 	// 导入
 	sb.WriteString("import (\n")
-	sb.WriteString(fmt.Sprintf("\t\"domain/model\"\n"))
-	sb.WriteString(fmt.Sprintf("\t\"infrastructure/persistence/do\"\n"))
+	sb.WriteString(fmt.Sprintf("\t\"model\"\n"))
+	sb.WriteString(fmt.Sprintf("\t\"do\"\n"))
 	sb.WriteString(")\n\n")
 
 	// ToDomain 方法

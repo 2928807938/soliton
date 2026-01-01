@@ -244,7 +244,6 @@ func main() {
 	convertorGenerator := generator.NewConvertorGenerator()
 	repoInterfaceGenerator := generator.NewRepositoryInterfaceGenerator()
 	repoImplGenerator := generator.NewRepositoryImplGenerator()
-	serviceInterfaceGenerator := generator.NewServiceInterfaceGenerator()
 	serviceImplGenerator := generator.NewServiceImplGenerator()
 
 	// 生成统计
@@ -255,7 +254,6 @@ func main() {
 	convertorCount := 0
 	repoInterfaceCount := 0
 	repoImplCount := 0
-	serviceInterfaceCount := 0
 	serviceImplCount := 0
 
 	// 0. 生成 Entity 接口实现（追加到原领域模型文件）
@@ -371,22 +369,7 @@ func main() {
 	}
 	fmt.Println()
 
-	// 7. 生成领域服务接口
-	fmt.Println("📝 生成领域服务接口:")
-	for i, agg := range registry.GetAll() {
-		fmt.Printf("%d. %sService.go", i+1, agg.Name)
-
-		if err := serviceInterfaceGenerator.Generate(agg, outputDir); err != nil {
-			fmt.Printf(" ⚠️  失败: %v\n", err)
-			continue
-		}
-
-		serviceInterfaceCount++
-		fmt.Printf(" ✅\n")
-	}
-	fmt.Println()
-
-	// 8. 生成领域服务实现
+	// 7. 生成领域服务实现
 	fmt.Println("📝 生成领域服务实现:")
 	for i, agg := range registry.GetAll() {
 		fmt.Printf("%d. %sServiceImpl.go", i+1, agg.Name)
@@ -413,20 +396,18 @@ func main() {
 	fmt.Printf("   - 转换器: %d 个\n", convertorCount)
 	fmt.Printf("   - 仓储接口: %d 个\n", repoInterfaceCount)
 	fmt.Printf("   - 仓储实现: %d 个\n", repoImplCount)
-	fmt.Printf("   - 服务接口: %d 个\n", serviceInterfaceCount)
 	fmt.Printf("   - 服务实现: %d 个\n", serviceImplCount)
 	fmt.Println()
 	fmt.Println("📂 生成目录:")
 	fmt.Printf("   - SQL 脚本: %s\n", filepath.Join(outputDir, "sql"))
 	fmt.Printf("   - Entity 接口实现: %s（已追加到原领域模型文件）\n", modelDir)
-	fmt.Printf("   - 枚举类型: %s\n", filepath.Join(outputDir, "domain/enum"))
-	fmt.Printf("   - DO: %s\n", filepath.Join(outputDir, "infrastructure/persistence/do"))
-	fmt.Printf("   - 查询字段: %s\n", filepath.Join(outputDir, "infrastructure/persistence/query"))
-	fmt.Printf("   - 转换器: %s\n", filepath.Join(outputDir, "infrastructure/persistence/convertor"))
-	fmt.Printf("   - 仓储接口: %s\n", filepath.Join(outputDir, "domain/repository"))
-	fmt.Printf("   - 仓储实现: %s\n", filepath.Join(outputDir, "infrastructure/persistence"))
-	fmt.Printf("   - 服务接口: %s\n", filepath.Join(outputDir, "domain/service"))
-	fmt.Printf("   - 服务实现: %s\n", filepath.Join(outputDir, "domain/service/impl"))
+	fmt.Printf("   - 枚举类型: %s\n", filepath.Join(outputDir, "enum"))
+	fmt.Printf("   - DO: %s\n", filepath.Join(filepath.Dir(outputDir), "infrastructure/do"))
+	fmt.Printf("   - 查询字段: %s\n", filepath.Join(filepath.Dir(outputDir), "infrastructure/query"))
+	fmt.Printf("   - 转换器: %s\n", filepath.Join(filepath.Dir(outputDir), "infrastructure/convertor"))
+	fmt.Printf("   - 仓储接口: %s\n", filepath.Join(outputDir, "repository"))
+	fmt.Printf("   - 仓储实现: %s\n", filepath.Join(filepath.Dir(outputDir), "infrastructure/repository"))
+	fmt.Printf("   - 服务实现: %s\n", filepath.Join(outputDir, "service/impl"))
 	fmt.Println()
 	fmt.Println("💡 完成！所有DDD基础设施代码已生成")
 }

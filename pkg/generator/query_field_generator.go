@@ -25,8 +25,8 @@ func NewQueryFieldGenerator() *QueryFieldGenerator {
 
 // Generate 为聚合根生成查询字段
 func (g *QueryFieldGenerator) Generate(agg *metadata.AggregateMetadata, outputDir string) error {
-	// 创建输出目录
-	queryDir := filepath.Join(outputDir, "infrastructure", "persistence", "query")
+	// 创建输出目录（infrastructure 与 domain 平级）
+	queryDir := filepath.Join(filepath.Dir(outputDir), "infrastructure", "query")
 	if err := os.MkdirAll(queryDir, 0755); err != nil {
 		return fmt.Errorf("创建输出目录失败: %w", err)
 	}
@@ -46,7 +46,7 @@ func (g *QueryFieldGenerator) Generate(agg *metadata.AggregateMetadata, outputDi
 
 // GenerateFieldTypes 生成通用的字段类型定义（只需生成一次）
 func (g *QueryFieldGenerator) GenerateFieldTypes(outputDir string) error {
-	queryDir := filepath.Join(outputDir, "infrastructure", "persistence", "query")
+	queryDir := filepath.Join(filepath.Dir(outputDir), "infrastructure", "query")
 	if err := os.MkdirAll(queryDir, 0755); err != nil {
 		return fmt.Errorf("创建输出目录失败: %w", err)
 	}

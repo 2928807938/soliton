@@ -26,8 +26,8 @@ func NewServiceImplGenerator() *ServiceImplGenerator {
 
 // Generate 为聚合根生成领域服务实现
 func (g *ServiceImplGenerator) Generate(agg *metadata.AggregateMetadata, outputDir string) error {
-	// 创建输出目录：domain/service/impl
-	implDir := filepath.Join(outputDir, "domain", "service", "impl")
+	// 创建输出目录：service/impl
+	implDir := filepath.Join(outputDir, "service", "impl")
 	if err := os.MkdirAll(implDir, 0755); err != nil {
 		return fmt.Errorf("创建输出目录失败: %w", err)
 	}
@@ -60,9 +60,8 @@ func (g *ServiceImplGenerator) generateCode(agg *metadata.AggregateMetadata) str
 	sb.WriteString("\t\"context\"\n")
 	sb.WriteString("\t\"errors\"\n")
 	sb.WriteString("\t\"fmt\"\n")
-	sb.WriteString("\t\"domain/model\"\n")
-	sb.WriteString("\t\"domain/repository\"\n")
-	sb.WriteString("\t\"domain/service\"\n")
+	sb.WriteString("\t\"model\"\n")
+	sb.WriteString("\t\"repository\"\n")
 	sb.WriteString("\t\"soliton/pkg/framework\"\n")
 	sb.WriteString(")\n\n")
 
@@ -87,11 +86,6 @@ func (g *ServiceImplGenerator) generateCode(agg *metadata.AggregateMetadata) str
 
 	// 生成校验方法
 	sb.WriteString(g.generateValidationMethods(agg))
-
-	// 接口实现检查
-	sb.WriteString(fmt.Sprintf("// 确保实现了接口\n"))
-	sb.WriteString(fmt.Sprintf("var _ service.%sService = (*%sServiceImpl)(nil)\n",
-		agg.Name, agg.Name))
 
 	return sb.String()
 }
