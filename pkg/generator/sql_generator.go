@@ -154,14 +154,26 @@ func (g *SQLGenerator) generateTable(agg *metadata.AggregateMetadata) string {
 // generateColumn 生成列定义
 func (g *SQLGenerator) generateColumn(field *metadata.FieldMetadata, isPrimaryKey bool) string {
 	columnName := g.getColumnName(field.Name)
-	sqlType := g.mapGoTypeToSQL(field.Type, field.IsPointer)
+
+	// 值对象特殊处理
+	var sqlType string
+	if field.Annotations.IsValueObject {
+		if field.Annotations.Strategy == "json" {
+			sqlType = "TEXT"
+		} else {
+			// 展开策略暂不支持，使用 TEXT
+			sqlType = "TEXT"
+		}
+	} else {
+		sqlType = g.mapGoTypeToSQL(field.Type, field.IsPointer)
+	}
 
 	var parts []string
 	parts = append(parts, fmt.Sprintf("  `%s`", columnName))
 	parts = append(parts, sqlType)
 
 	// NOT NULL 约束
-	if !field.IsPointer && !isPrimaryKey {
+	if !field.IsPointer && !isPrimaryKey && !field.Annotations.IsValueObject {
 		if field.Annotations.IsRequired || field.Type == "int64" || field.Type == "int" || field.Type == "float64" {
 			parts = append(parts, "NOT NULL")
 		}
@@ -169,6 +181,9 @@ func (g *SQLGenerator) generateColumn(field *metadata.FieldMetadata, isPrimaryKe
 
 	// 默认值
 	if field.IsPointer {
+		parts = append(parts, "DEFAULT NULL")
+	} else if field.Annotations.IsValueObject {
+		// 值对象默认为 NULL
 		parts = append(parts, "DEFAULT NULL")
 	} else if field.Type == "string" && !isPrimaryKey {
 		parts = append(parts, "DEFAULT ''")
@@ -191,6 +206,9 @@ func (g *SQLGenerator) generateColumn(field *metadata.FieldMetadata, isPrimaryKe
 	}
 	if field.Annotations.IsRef {
 		comment += " (外键)"
+	}
+	if field.Annotations.IsValueObject {
+		comment += " (值对象-JSON)"
 	}
 	parts = append(parts, fmt.Sprintf("COMMENT '%s'", comment))
 
