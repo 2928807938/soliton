@@ -41,16 +41,16 @@ var (
 //	    // 自定义查询逻辑
 //	}
 type BaseRepository[T Entity, D any] struct {
-	db       *gorm.DB  // GORM 数据库实例
-	toDO     func(T) D // 领域对象 → 数据对象转换函数
-	toDomain func(D) T // 数据对象 → 领域对象转换函数
+	db       *gorm.DB   // GORM 数据库实例
+	toDO     func(T) *D // 领域对象 → 数据对象转换函数（返回指针）
+	toDomain func(*D) T // 数据对象 → 领域对象转换函数（接收指针）
 }
 
 // NewBaseRepository 创建基础仓储实例
 func NewBaseRepository[T Entity, D any](
 	db *gorm.DB,
-	toDO func(T) D,
-	toDomain func(D) T,
+	toDO func(T) *D,
+	toDomain func(*D) T,
 ) *BaseRepository[T, D] {
 	return &BaseRepository[T, D]{
 		db:       db,
@@ -67,7 +67,7 @@ func (r *BaseRepository[T, D]) DB() *gorm.DB {
 // Add 添加实体
 func (r *BaseRepository[T, D]) Add(ctx context.Context, entity T) error {
 	do := r.toDO(entity)
-	result := r.db.WithContext(ctx).Create(&do)
+	result := r.db.WithContext(ctx).Create(do)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -94,7 +94,7 @@ func (r *BaseRepository[T, D]) Update(ctx context.Context, entity T) error {
 
 	// 使用 Updates 方法更新（只更新非零值字段）
 	// GORM 会自动处理 Version 字段的乐观锁逻辑
-	result := r.db.WithContext(ctx).Updates(&do)
+	result := r.db.WithContext(ctx).Updates(do)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -161,7 +161,7 @@ func (r *BaseRepository[T, D]) FindByID(ctx context.Context, id int64) (T, error
 		return zero, result.Error
 	}
 
-	return r.toDomain(do), nil
+	return r.toDomain(&do), nil
 }
 
 // FindByIDWithDeleted 根据 ID 查询实体（包含已删除）
@@ -178,7 +178,7 @@ func (r *BaseRepository[T, D]) FindByIDWithDeleted(ctx context.Context, id int64
 		return zero, result.Error
 	}
 
-	return r.toDomain(do), nil
+	return r.toDomain(&do), nil
 }
 
 // FindAll 查询所有实体
@@ -192,8 +192,8 @@ func (r *BaseRepository[T, D]) FindAll(ctx context.Context) ([]T, error) {
 
 	// 转换为领域对象列表
 	entities := make([]T, len(dos))
-	for i, do := range dos {
-		entities[i] = r.toDomain(do)
+	for i := range dos {
+		entities[i] = r.toDomain(&dos[i])
 	}
 
 	return entities, nil
@@ -225,8 +225,8 @@ func (r *BaseRepository[T, D]) FindPage(ctx context.Context, page, pageSize int)
 
 	// 转换为领域对象列表
 	entities := make([]T, len(dos))
-	for i, do := range dos {
-		entities[i] = r.toDomain(do)
+	for i := range dos {
+		entities[i] = r.toDomain(&dos[i])
 	}
 
 	return entities, total, nil

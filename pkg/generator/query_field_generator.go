@@ -70,6 +70,8 @@ package query
 import (
 	"fmt"
 	"strings"
+
+	"gorm.io/gorm"
 )
 
 // Condition 查询条件接口
@@ -403,13 +405,12 @@ func (f TimeField) IsNotNull() Condition {
 }
 
 // Where 辅助函数：将多个条件组合为 GORM 可用的格式
-func Where(db interface{ Where(query interface{}, args ...interface{}) interface{} }, conds ...Condition) interface{} {
-	result := db
+func Where(db *gorm.DB, conds ...Condition) *gorm.DB {
 	for _, cond := range conds {
 		sql, args := cond.Build()
-		result = result.Where(sql, args...)
+		db = db.Where(sql, args...)
 	}
-	return result
+	return db
 }
 `
 }

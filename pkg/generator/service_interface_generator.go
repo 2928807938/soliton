@@ -61,8 +61,8 @@ func (g *ServiceInterfaceGenerator) generateCode(agg *metadata.AggregateMetadata
 	sb.WriteString(fmt.Sprintf("// %sService %s 领域服务接口\n", agg.Name, agg.Name))
 	sb.WriteString(fmt.Sprintf("type %sService interface {\n", agg.Name))
 
-	// 继承泛型接口
-	sb.WriteString(fmt.Sprintf("\tframework.Service[model.%s]\n", agg.Name))
+	// 继承泛型接口（使用指针类型，因为 Entity 接口方法定义在指针接收器上）
+	sb.WriteString(fmt.Sprintf("\tframework.Service[*model.%s]\n", agg.Name))
 
 	// 可以在这里添加扩展业务方法的注释提示
 	sb.WriteString("\n")

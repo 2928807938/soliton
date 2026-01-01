@@ -97,9 +97,9 @@ func (g *ConvertorGenerator) generateToDomainMethod(agg *metadata.AggregateMetad
 	doType := fmt.Sprintf("do.%sDO", agg.Name)
 	domainType := fmt.Sprintf("%s.%s", agg.PackageName, agg.Name)
 
-	// 方法签名
-	sb.WriteString(fmt.Sprintf("// ToDomain 数据对象转领域对象\n"))
-	sb.WriteString(fmt.Sprintf("func ToDomain(dataObj *%s) *%s {\n", doType, domainType))
+	// 方法签名（函数名包含实体名称，避免同包内冲突）
+	sb.WriteString(fmt.Sprintf("// %sToDomain 数据对象转领域对象\n", agg.Name))
+	sb.WriteString(fmt.Sprintf("func %sToDomain(dataObj *%s) *%s {\n", agg.Name, doType, domainType))
 
 	// nil 检查
 	sb.WriteString("\tif dataObj == nil {\n")
@@ -143,9 +143,9 @@ func (g *ConvertorGenerator) generateToDataMethod(agg *metadata.AggregateMetadat
 	doType := fmt.Sprintf("do.%sDO", agg.Name)
 	domainType := fmt.Sprintf("%s.%s", agg.PackageName, agg.Name)
 
-	// 方法签名
-	sb.WriteString(fmt.Sprintf("// ToData 领域对象转数据对象\n"))
-	sb.WriteString(fmt.Sprintf("func ToData(domain *%s) *%s {\n", domainType, doType))
+	// 方法签名（函数名包含实体名称，避免同包内冲突）
+	sb.WriteString(fmt.Sprintf("// %sToData 领域对象转数据对象\n", agg.Name))
+	sb.WriteString(fmt.Sprintf("func %sToData(domain *%s) *%s {\n", agg.Name, domainType, doType))
 
 	// nil 检查
 	sb.WriteString("\tif domain == nil {\n")

@@ -67,8 +67,8 @@ func (g *RepositoryInterfaceGenerator) generateCode(agg *metadata.AggregateMetad
 	sb.WriteString(fmt.Sprintf("// %sRepository %s 仓储接口\n", agg.Name, agg.Name))
 	sb.WriteString(fmt.Sprintf("type %sRepository interface {\n", agg.Name))
 
-	// 继承泛型接口
-	sb.WriteString(fmt.Sprintf("\tframework.Repository[%s.%s]\n", agg.PackageName, agg.Name))
+	// 继承泛型接口（使用指针类型，因为 Entity 接口方法定义在指针接收器上）
+	sb.WriteString(fmt.Sprintf("\tframework.Repository[*%s.%s]\n", agg.PackageName, agg.Name))
 
 	// 生成扩展方法
 	extendMethods := g.generateExtendMethods(agg)
@@ -85,6 +85,8 @@ func (g *RepositoryInterfaceGenerator) generateCode(agg *metadata.AggregateMetad
 // generateExtendMethods 生成扩展方法
 func (g *RepositoryInterfaceGenerator) generateExtendMethods(agg *metadata.AggregateMetadata) string {
 	var sb strings.Builder
+	// 记录已生成的方法名，避免重复
+	generatedMethods := make(map[string]bool)
 
 	for _, field := range agg.Fields {
 		// 跳过 ID 字段和关联实体字段
@@ -92,31 +94,41 @@ func (g *RepositoryInterfaceGenerator) generateExtendMethods(agg *metadata.Aggre
 			continue
 		}
 
+		methodName := fmt.Sprintf("GetBy%s", field.Name)
+
 		// unique 字段生成 GetByXxx 方法（返回单个对象）
 		if field.Annotations.IsUnique {
-			sb.WriteString(fmt.Sprintf("\t// GetBy%s 根据 %s 查询（唯一）\n",
-				field.Name, field.Name))
-			sb.WriteString(fmt.Sprintf("\tGetBy%s(ctx context.Context, %s %s) (*%s.%s, error)\n",
-				field.Name, toLowerFirst(field.Name), field.Type, agg.PackageName, agg.Name))
-			sb.WriteString("\n")
+			if !generatedMethods[methodName] {
+				sb.WriteString(fmt.Sprintf("\t// GetBy%s 根据 %s 查询（唯一）\n",
+					field.Name, field.Name))
+				sb.WriteString(fmt.Sprintf("\tGetBy%s(ctx context.Context, %s %s) (*%s.%s, error)\n",
+					field.Name, toLowerFirst(field.Name), field.Type, agg.PackageName, agg.Name))
+				sb.WriteString("\n")
+				generatedMethods[methodName] = true
+			}
 		}
 
-		// index 字段生成 GetByXxx 方法（返回列表）
-		if field.Annotations.IsIndex {
-			sb.WriteString(fmt.Sprintf("\t// GetBy%s 根据 %s 查询（索引）\n",
-				field.Name, field.Name))
-			sb.WriteString(fmt.Sprintf("\tGetBy%s(ctx context.Context, %s %s) ([]*%s.%s, error)\n",
-				field.Name, toLowerFirst(field.Name), field.Type, agg.PackageName, agg.Name))
-			sb.WriteString("\n")
-		}
+		// index 和 ref 字段生成 GetByXxx 方法（返回列表）
+		// 如果同时有 index 和 ref 注解，只生成一个方法
+		if field.Annotations.IsIndex || field.Annotations.IsRef {
+			if !generatedMethods[methodName] {
+				// 构建注释说明
+				var comments []string
+				if field.Annotations.IsIndex {
+					comments = append(comments, "索引")
+				}
+				if field.Annotations.IsRef {
+					comments = append(comments, "外键")
+				}
+				comment := strings.Join(comments, "/")
 
-		// ref 字段生成 GetByXxx 方法（返回列表）
-		if field.Annotations.IsRef {
-			sb.WriteString(fmt.Sprintf("\t// GetBy%s 根据 %s 查询（外键）\n",
-				field.Name, field.Name))
-			sb.WriteString(fmt.Sprintf("\tGetBy%s(ctx context.Context, %s %s) ([]*%s.%s, error)\n",
-				field.Name, toLowerFirst(field.Name), field.Type, agg.PackageName, agg.Name))
-			sb.WriteString("\n")
+				sb.WriteString(fmt.Sprintf("\t// GetBy%s 根据 %s 查询（%s）\n",
+					field.Name, field.Name, comment))
+				sb.WriteString(fmt.Sprintf("\tGetBy%s(ctx context.Context, %s %s) ([]*%s.%s, error)\n",
+					field.Name, toLowerFirst(field.Name), field.Type, agg.PackageName, agg.Name))
+				sb.WriteString("\n")
+				generatedMethods[methodName] = true
+			}
 		}
 	}
 
