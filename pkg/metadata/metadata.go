@@ -98,11 +98,21 @@ type ManyToManyTableMetadata struct {
 	GenerationType string // 生成类型："relation_only"（纯关联）或 "aggregate"（作为聚合根）
 }
 
+// EnumMetadata 枚举元数据
+type EnumMetadata struct {
+	Name          string   // 枚举名称，如 "UserStatus"
+	FieldName     string   // 原字段名，如 "Status"
+	AggregateName string   // 所属聚合根，如 "User"
+	Values        []string // 枚举值列表，如 ["ACTIVE", "INACTIVE", "BANNED"]
+	GoType        string   // Go 类型，通常是 string
+}
+
 // AggregateMetadataRegistry 全局聚合根元数据注册表
 type AggregateMetadataRegistry struct {
 	aggregates       map[string]*AggregateMetadata // 聚合根名 -> 元数据
 	relations        []*RelationMetadata           // 所有关系
 	manyToManyTables []*ManyToManyTableMetadata    // 多对多关联表
+	enums            []*EnumMetadata               // 所有枚举
 }
 
 // NewAggregateMetadataRegistry 创建注册表
@@ -111,6 +121,7 @@ func NewAggregateMetadataRegistry() *AggregateMetadataRegistry {
 		aggregates:       make(map[string]*AggregateMetadata),
 		relations:        make([]*RelationMetadata, 0),
 		manyToManyTables: make([]*ManyToManyTableMetadata, 0),
+		enums:            make([]*EnumMetadata, 0),
 	}
 }
 
@@ -168,4 +179,32 @@ func (r *AggregateMetadataRegistry) GetManyToManyTables() []*ManyToManyTableMeta
 func (r *AggregateMetadataRegistry) Exists(name string) bool {
 	_, ok := r.aggregates[name]
 	return ok
+}
+
+// AddEnum 添加枚举
+func (r *AggregateMetadataRegistry) AddEnum(enum *EnumMetadata) {
+	r.enums = append(r.enums, enum)
+}
+
+// GetEnums 获取所有枚举
+func (r *AggregateMetadataRegistry) GetEnums() []*EnumMetadata {
+	return r.enums
+}
+
+// CollectEnums 从所有聚合根中收集枚举
+func (r *AggregateMetadataRegistry) CollectEnums() {
+	for _, agg := range r.aggregates {
+		for _, field := range agg.Fields {
+			if len(field.Annotations.EnumValues) > 0 {
+				enumName := agg.Name + field.Name // 如 UserStatus
+				r.enums = append(r.enums, &EnumMetadata{
+					Name:          enumName,
+					FieldName:     field.Name,
+					AggregateName: agg.Name,
+					Values:        field.Annotations.EnumValues,
+					GoType:        field.Type,
+				})
+			}
+		}
+	}
 }

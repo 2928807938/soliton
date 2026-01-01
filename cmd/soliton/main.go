@@ -142,6 +142,9 @@ func main() {
 		fmt.Println()
 	}
 
+	// 收集枚举
+	registry.CollectEnums()
+
 	fmt.Println("✅ 关系分析完成！")
 	fmt.Println()
 
@@ -235,6 +238,7 @@ func main() {
 
 	// 创建生成器
 	entityGenerator := generator.NewEntityGenerator()
+	enumGenerator := generator.NewEnumGenerator()
 	doGenerator := generator.NewDOGenerator()
 	queryFieldGenerator := generator.NewQueryFieldGenerator()
 	convertorGenerator := generator.NewConvertorGenerator()
@@ -245,6 +249,7 @@ func main() {
 
 	// 生成统计
 	entityCount := 0
+	enumCount := 0
 	doCount := 0
 	queryFieldCount := 0
 	convertorCount := 0
@@ -268,7 +273,22 @@ func main() {
 	}
 	fmt.Println()
 
-	// 1. 生成数据对象（DO）
+	// 1. 生成枚举类型
+	enums := registry.GetEnums()
+	if len(enums) > 0 {
+		fmt.Println("📝 生成枚举类型:")
+		if err := enumGenerator.Generate(registry, outputDir); err != nil {
+			fmt.Printf("   ⚠️  失败: %v\n", err)
+		} else {
+			for i, enum := range enums {
+				fmt.Printf("%d. %s.go ✅\n", i+1, toLowerFirst(enum.Name))
+				enumCount++
+			}
+		}
+		fmt.Println()
+	}
+
+	// 2. 生成数据对象（DO）
 	fmt.Println("📝 生成数据对象（DO）:")
 	for i, agg := range registry.GetAll() {
 		fmt.Printf("%d. %sDO.go", i+1, agg.Name)
@@ -283,7 +303,7 @@ func main() {
 	}
 	fmt.Println()
 
-	// 2. 生成查询字段（Query Fields）
+	// 3. 生成查询字段（Query Fields）
 	fmt.Println("📝 生成查询字段（类型安全查询）:")
 	// 先生成通用字段类型定义
 	fmt.Printf("0. field_types.go")
@@ -306,7 +326,7 @@ func main() {
 	}
 	fmt.Println()
 
-	// 3. 生成转换器
+	// 4. 生成转换器
 	fmt.Println("📝 生成转换器:")
 	for i, agg := range registry.GetAll() {
 		fmt.Printf("%d. %sConvertor.go", i+1, agg.Name)
@@ -321,7 +341,7 @@ func main() {
 	}
 	fmt.Println()
 
-	// 4. 生成仓储接口
+	// 5. 生成仓储接口
 	fmt.Println("📝 生成仓储接口:")
 	for i, agg := range registry.GetAll() {
 		fmt.Printf("%d. %sRepository.go", i+1, agg.Name)
@@ -336,7 +356,7 @@ func main() {
 	}
 	fmt.Println()
 
-	// 5. 生成仓储实现
+	// 6. 生成仓储实现
 	fmt.Println("📝 生成仓储实现:")
 	for i, agg := range registry.GetAll() {
 		fmt.Printf("%d. %sRepositoryImpl.go", i+1, agg.Name)
@@ -351,7 +371,7 @@ func main() {
 	}
 	fmt.Println()
 
-	// 6. 生成领域服务接口
+	// 7. 生成领域服务接口
 	fmt.Println("📝 生成领域服务接口:")
 	for i, agg := range registry.GetAll() {
 		fmt.Printf("%d. %sService.go", i+1, agg.Name)
@@ -366,7 +386,7 @@ func main() {
 	}
 	fmt.Println()
 
-	// 7. 生成领域服务实现
+	// 8. 生成领域服务实现
 	fmt.Println("📝 生成领域服务实现:")
 	for i, agg := range registry.GetAll() {
 		fmt.Printf("%d. %sServiceImpl.go", i+1, agg.Name)
@@ -387,6 +407,7 @@ func main() {
 	fmt.Println("📊 生成统计:")
 	fmt.Printf("   - SQL 建表脚本: 1 个\n")
 	fmt.Printf("   - Entity 接口实现: %d 个\n", entityCount)
+	fmt.Printf("   - 枚举类型: %d 个\n", enumCount)
 	fmt.Printf("   - 数据对象（DO）: %d 个\n", doCount)
 	fmt.Printf("   - 查询字段: %d 个\n", queryFieldCount)
 	fmt.Printf("   - 转换器: %d 个\n", convertorCount)
@@ -398,6 +419,7 @@ func main() {
 	fmt.Println("📂 生成目录:")
 	fmt.Printf("   - SQL 脚本: %s\n", filepath.Join(outputDir, "sql"))
 	fmt.Printf("   - Entity 接口实现: %s（已追加到原领域模型文件）\n", modelDir)
+	fmt.Printf("   - 枚举类型: %s\n", filepath.Join(outputDir, "domain/enum"))
 	fmt.Printf("   - DO: %s\n", filepath.Join(outputDir, "infrastructure/persistence/do"))
 	fmt.Printf("   - 查询字段: %s\n", filepath.Join(outputDir, "infrastructure/persistence/query"))
 	fmt.Printf("   - 转换器: %s\n", filepath.Join(outputDir, "infrastructure/persistence/convertor"))
