@@ -77,10 +77,10 @@ func (g *ServiceImplGenerator) generateCode(agg *metadata.AggregateMetadata, imp
 	refs := g.collectRefFields(agg)
 
 	// 检查需要哪些包
-	needErrors := false // 有 required 字段时需要
+	needErrors := false // 有 required/unique 字段时需要
 	needFmt := false    // 有 unique 或 enum 或 ref 字段时需要
 	for _, field := range agg.Fields {
-		if field.Annotations.IsRequired {
+		if field.Annotations.IsRequired || field.Annotations.IsUnique {
 			needErrors = true
 		}
 		if field.Annotations.IsUnique || len(field.Annotations.EnumValues) > 0 || field.Annotations.IsRef {
@@ -385,7 +385,11 @@ func (g *ServiceImplGenerator) generateValidationMethods(agg *metadata.Aggregate
 				sb.WriteString(fmt.Sprintf("\texisting, err = %s.repository.GetBy%s(ctx, entity.%s)\n",
 					receiver, field.Name, field.Name))
 			}
-			sb.WriteString("\tif err == nil && existing != nil {\n")
+			sb.WriteString("\tif err != nil {\n")
+			sb.WriteString("\t\tif !errors.Is(err, framework.ErrRecordNotFound) {\n")
+			sb.WriteString(fmt.Sprintf("\t\t\treturn fmt.Errorf(\"校验 %s 唯一性失败: %%w\", err)\n", field.Name))
+			sb.WriteString("\t\t}\n")
+			sb.WriteString("\t} else if existing != nil {\n")
 			sb.WriteString(fmt.Sprintf("\t\treturn fmt.Errorf(\"%s 已存在: %%v\", entity.%s)\n",
 				field.Name, field.Name))
 			sb.WriteString("\t}\n\n")
@@ -418,7 +422,11 @@ func (g *ServiceImplGenerator) generateValidationMethods(agg *metadata.Aggregate
 					sb.WriteString(fmt.Sprintf("\texisting, err = %s.repository.GetBy%s(ctx, entity.%s)\n",
 						receiver, field.Name, field.Name))
 				}
-				sb.WriteString("\tif err == nil && existing != nil && existing.GetID() != entity.GetID() {\n")
+				sb.WriteString("\tif err != nil {\n")
+				sb.WriteString("\t\tif !errors.Is(err, framework.ErrRecordNotFound) {\n")
+				sb.WriteString(fmt.Sprintf("\t\t\treturn fmt.Errorf(\"校验 %s 唯一性失败: %%w\", err)\n", field.Name))
+				sb.WriteString("\t\t}\n")
+				sb.WriteString("\t} else if existing != nil && existing.GetID() != entity.GetID() {\n")
 				sb.WriteString(fmt.Sprintf("\t\treturn fmt.Errorf(\"%s 已存在: %%v\", entity.%s)\n",
 					field.Name, field.Name))
 				sb.WriteString("\t}\n\n")

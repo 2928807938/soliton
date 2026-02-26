@@ -1,6 +1,9 @@
 package metadata
 
-import "go/ast"
+import (
+	"go/ast"
+	"sort"
+)
 
 // AggregateMetadata 聚合根元数据
 type AggregateMetadata struct {
@@ -141,8 +144,13 @@ func (r *AggregateMetadataRegistry) Get(name string) *AggregateMetadata {
 // GetAll 获取所有聚合根
 func (r *AggregateMetadataRegistry) GetAll() []*AggregateMetadata {
 	result := make([]*AggregateMetadata, 0, len(r.aggregates))
-	for _, agg := range r.aggregates {
-		result = append(result, agg)
+	names := make([]string, 0, len(r.aggregates))
+	for name := range r.aggregates {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		result = append(result, r.aggregates[name])
 	}
 	return result
 }
@@ -196,10 +204,19 @@ func (r *AggregateMetadataRegistry) GetEnums() []*EnumMetadata {
 
 // CollectEnums 从所有聚合根中收集枚举
 func (r *AggregateMetadataRegistry) CollectEnums() {
-	for _, agg := range r.aggregates {
+	// 重建枚举列表，避免重复收集
+	r.enums = r.enums[:0]
+	seen := make(map[string]bool)
+
+	for _, agg := range r.GetAll() {
 		for _, field := range agg.Fields {
 			if len(field.Annotations.EnumValues) > 0 {
 				enumName := agg.Name + field.Name // 如 UserStatus
+				enumKey := agg.Name + "." + field.Name
+				if seen[enumKey] {
+					continue
+				}
+				seen[enumKey] = true
 				r.enums = append(r.enums, &EnumMetadata{
 					Name:          enumName,
 					FieldName:     field.Name,

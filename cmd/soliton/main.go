@@ -9,6 +9,8 @@ import (
 	"soliton/pkg/generator"
 	"soliton/pkg/metadata"
 	"soliton/pkg/parser"
+	"strings"
+	"unicode"
 )
 
 func main() {
@@ -416,7 +418,9 @@ func toLowerFirst(s string) string {
 	if len(s) == 0 {
 		return s
 	}
-	return string(s[0]+32) + s[1:]
+	runes := []rune(s)
+	runes[0] = unicode.ToLower(runes[0])
+	return string(runes)
 }
 
 func relationTypeName(t metadata.RelationType) string {
@@ -435,20 +439,9 @@ func relationTypeName(t metadata.RelationType) string {
 }
 
 func repeat(s string, count int) string {
-	result := ""
-	for i := 0; i < count; i++ {
-		result += s
-	}
-	return result
+	return strings.Repeat(s, count)
 }
 
 func joinStrings(strs []string, sep string) string {
-	result := ""
-	for i, str := range strs {
-		if i > 0 {
-			result += sep
-		}
-		result += str
-	}
-	return result
+	return strings.Join(strs, sep)
 }

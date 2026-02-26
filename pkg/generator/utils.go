@@ -2,7 +2,7 @@ package generator
 
 import (
 	"path/filepath"
-	"strings"
+	"unicode"
 )
 
 // toLowerFirst 将字符串首字母转为小写
@@ -10,7 +10,9 @@ func toLowerFirst(s string) string {
 	if len(s) == 0 {
 		return s
 	}
-	return strings.ToLower(string(s[0])) + s[1:]
+	runes := []rune(s)
+	runes[0] = unicode.ToLower(runes[0])
+	return string(runes)
 }
 
 // calculateImportPath 根据模块信息计算目录的完整 import 路径

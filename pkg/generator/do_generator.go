@@ -190,11 +190,22 @@ func (g *DOGenerator) generateValueObjectField(field *metadata.FieldMetadata) st
 // toSnakeCase 转换为蛇形命名
 func toSnakeCase(s string) string {
 	var result []rune
-	for i, r := range s {
-		if i > 0 && r >= 'A' && r <= 'Z' {
-			result = append(result, '_')
+	runes := []rune(s)
+
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if r >= 'A' && r <= 'Z' {
+			if i > 0 && runes[i-1] >= 'a' && runes[i-1] <= 'z' {
+				result = append(result, '_')
+			}
+			if i > 0 && i < len(runes)-1 &&
+				runes[i-1] >= 'A' && runes[i-1] <= 'Z' &&
+				runes[i+1] >= 'a' && runes[i+1] <= 'z' {
+				result = append(result, '_')
+			}
 		}
 		result = append(result, r)
 	}
+
 	return strings.ToLower(string(result))
 }

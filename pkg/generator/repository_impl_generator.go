@@ -190,7 +190,7 @@ func (g *RepositoryImplGenerator) generateGetByUniqueMethod(agg *metadata.Aggreg
 	sb.WriteString("\n")
 	sb.WriteString("\tif err != nil {\n")
 	sb.WriteString("\t\tif errors.Is(err, gorm.ErrRecordNotFound) {\n")
-	sb.WriteString("\t\t\treturn nil, errors.New(\"记录不存在\")\n")
+	sb.WriteString("\t\t\treturn nil, framework.ErrRecordNotFound\n")
 	sb.WriteString("\t\t}\n")
 	sb.WriteString("\t\treturn nil, err\n")
 	sb.WriteString("\t}\n")

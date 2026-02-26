@@ -17,6 +17,7 @@ type AnnotationParser struct {
 	valueObjectPattern *regexp.Regexp
 	indexPattern       *regexp.Regexp
 	enumPattern        *regexp.Regexp
+	dbTagPattern       *regexp.Regexp
 }
 
 // NewAnnotationParser 创建注解解析器
@@ -32,6 +33,7 @@ func NewAnnotationParser() *AnnotationParser {
 		valueObjectPattern: regexp.MustCompile(`\+soliton:valueObject(?:\(strategy=(\w+)\))?`),
 		indexPattern:       regexp.MustCompile(`\+soliton:index`),
 		enumPattern:        regexp.MustCompile(`\+soliton:enum\((.*?)\)`),
+		dbTagPattern:       regexp.MustCompile(`db:"([^"]+)"`),
 	}
 }
 
@@ -135,9 +137,7 @@ func (p *AnnotationParser) ParseFieldAnnotations(tag string) (
 // 输入：完整标签字符串，如 `db:"order_no" +soliton:unique`
 // 返回：db 标签值
 func (p *AnnotationParser) ParseDBTag(tag string) string {
-	// 使用正则提取 db:"xxx" 中的值
-	dbPattern := regexp.MustCompile(`db:"([^"]+)"`)
-	matches := dbPattern.FindStringSubmatch(tag)
+	matches := p.dbTagPattern.FindStringSubmatch(tag)
 	if len(matches) > 1 {
 		return matches[1]
 	}

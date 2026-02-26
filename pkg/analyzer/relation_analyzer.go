@@ -69,6 +69,7 @@ func (a *RelationAnalyzer) analyzeAggregateRelations(agg *metadata.AggregateMeta
 // identifyRelationType 根据字段数据类型识别关系类型
 //
 // 判断规则（通过字段类型自动识别）：
+//
 //  1. 外部引用：字段类型为基础类型（int64等） + +soliton:ref 注解
 //     示例：UserID int64 `db:"user_id" +soliton:ref`
 //
@@ -255,12 +256,23 @@ func (a *RelationAnalyzer) createManyToManyTable(relation *metadata.RelationMeta
 // Order -> order, OrderItem -> order_item
 func toSnakeCase(s string) string {
 	var result []rune
-	for i, r := range s {
-		if i > 0 && r >= 'A' && r <= 'Z' {
-			result = append(result, '_')
+	runes := []rune(s)
+
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if r >= 'A' && r <= 'Z' {
+			if i > 0 && runes[i-1] >= 'a' && runes[i-1] <= 'z' {
+				result = append(result, '_')
+			}
+			if i > 0 && i < len(runes)-1 &&
+				runes[i-1] >= 'A' && runes[i-1] <= 'Z' &&
+				runes[i+1] >= 'a' && runes[i+1] <= 'z' {
+				result = append(result, '_')
+			}
 		}
 		result = append(result, r)
 	}
+
 	return strings.ToLower(string(result))
 }
 

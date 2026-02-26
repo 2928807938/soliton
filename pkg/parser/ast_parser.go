@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"soliton/pkg/metadata"
@@ -112,71 +113,83 @@ func (p *ASTParser) ParseDirectory(dirPath string) ([]*metadata.AggregateMetadat
 	// 查找模块信息
 	modRoot, modName := p.findGoMod(absDir)
 
-	// 计算 import 路径
-	importPath := p.calculateImportPath(absDir)
+	// 递归遍历目录，按包解析每个子目录
+	err = filepath.WalkDir(absDir, func(currentDir string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if !d.IsDir() {
+			return nil
+		}
 
-	// 解析目录中的所有包
-	pkgs, err := parser.ParseDir(p.fset, dirPath, nil, parser.ParseComments)
-	if err != nil {
-		return nil, fmt.Errorf("解析目录失败: %w", err)
-	}
+		// 跳过隐藏目录和 vendor
+		if d.Name() == "vendor" || strings.HasPrefix(d.Name(), ".") {
+			return filepath.SkipDir
+		}
 
-	// 遍历每个包
-	for _, pkg := range pkgs {
-		// 遍历包中的每个文件
-		// 注意：pkg.Files 的键已经是完整的文件路径，无需再拼接 dirPath
-		for filePath, file := range pkg.Files {
+		importPath := p.calculateImportPath(currentDir)
+		pkgs, parseErr := parser.ParseDir(p.fset, currentDir, func(fi os.FileInfo) bool {
+			return !strings.HasSuffix(fi.Name(), "_test.go")
+		}, parser.ParseComments)
+		if parseErr != nil {
+			return fmt.Errorf("解析目录 %s 失败: %w", currentDir, parseErr)
+		}
 
-			// 遍历文件中的所有声明
-			for _, decl := range file.Decls {
-				genDecl, ok := decl.(*ast.GenDecl)
-				if !ok || genDecl.Tok != token.TYPE {
-					continue
-				}
-
-				for _, spec := range genDecl.Specs {
-					typeSpec, ok := spec.(*ast.TypeSpec)
-					if !ok {
+		for _, pkg := range pkgs {
+			for filePath, file := range pkg.Files {
+				for _, decl := range file.Decls {
+					genDecl, ok := decl.(*ast.GenDecl)
+					if !ok || genDecl.Tok != token.TYPE {
 						continue
 					}
 
-					structType, ok := typeSpec.Type.(*ast.StructType)
-					if !ok {
-						continue
+					for _, spec := range genDecl.Specs {
+						typeSpec, ok := spec.(*ast.TypeSpec)
+						if !ok {
+							continue
+						}
+
+						structType, ok := typeSpec.Type.(*ast.StructType)
+						if !ok {
+							continue
+						}
+
+						comments := p.extractComments(genDecl.Doc)
+						isAggregate, baseEntity, isManyToMany, refs := p.annotationParser.ParseAggregateAnnotations(comments)
+						if !isAggregate {
+							continue
+						}
+
+						aggregate := &metadata.AggregateMetadata{
+							Name:        typeSpec.Name.Name,
+							PackageName: file.Name.Name,
+							ImportPath:  importPath,
+							ModuleName:  modName,
+							ModuleRoot:  modRoot,
+							FilePath:    filePath,
+							Struct:      structType,
+							Annotations: &metadata.AggregateAnnotations{
+								IsAggregate:  true,
+								BaseEntity:   baseEntity,
+								IsManyToMany: isManyToMany,
+								Refs:         refs,
+							},
+						}
+
+						aggregate.Fields = p.parseFields(structType)
+						aggregate.BaseEntity = p.identifyBaseEntityFields(aggregate.Fields)
+						aggregate.IDField = p.identifyIDField(aggregate.Fields)
+
+						allAggregates = append(allAggregates, aggregate)
 					}
-
-					// 提取注释并解析
-					comments := p.extractComments(genDecl.Doc)
-					isAggregate, baseEntity, isManyToMany, refs := p.annotationParser.ParseAggregateAnnotations(comments)
-
-					if !isAggregate {
-						continue
-					}
-
-					aggregate := &metadata.AggregateMetadata{
-						Name:        typeSpec.Name.Name,
-						PackageName: file.Name.Name,
-						ImportPath:  importPath,
-						ModuleName:  modName,
-						ModuleRoot:  modRoot,
-						FilePath:    filePath,
-						Struct:      structType,
-						Annotations: &metadata.AggregateAnnotations{
-							IsAggregate:  true,
-							BaseEntity:   baseEntity,
-							IsManyToMany: isManyToMany,
-							Refs:         refs,
-						},
-					}
-
-					aggregate.Fields = p.parseFields(structType)
-					aggregate.BaseEntity = p.identifyBaseEntityFields(aggregate.Fields)
-					aggregate.IDField = p.identifyIDField(aggregate.Fields)
-
-					allAggregates = append(allAggregates, aggregate)
 				}
 			}
 		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return allAggregates, nil
